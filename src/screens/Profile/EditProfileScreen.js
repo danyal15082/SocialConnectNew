@@ -17,12 +17,11 @@ const EditProfileScreen = ({navigation}) => {
   const [fullName, setFullName] = useState('');
   const [bio, setBio] = useState('');
 
-  useEffect(() => {
-    if (user) {
-      setFullName(user.displayName || '');
-      setBio('React Native Developer | BS Software Engineering');
-    }
-  }, []);
+ useEffect(() => {
+  if (!user) return;
+
+  setFullName(user.displayName || '');
+}, [user]);
 
   const handleSave = async () => {
     try {

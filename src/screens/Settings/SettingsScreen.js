@@ -85,7 +85,7 @@ const SettingsScreen = () => {
         onPress={() =>
           showMessage(
             'Help & Support',
-            'Contact support at support@socialconnect.com',
+            'Contact support at danyalurmar@gmail.com',
           )
         }>
         <Text style={styles.text}>❓ Help & Support</Text>
