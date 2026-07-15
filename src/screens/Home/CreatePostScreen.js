@@ -8,27 +8,167 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  Image,
+  PermissionsAndroid,
+  Platform,
 } from 'react-native';
 
+import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
 import Colors from '../../constants/Colors';
 import {PostsContext} from '../../context/PostsContext';
+import {AuthContext} from '../../context/AuthContext';
 
 const MAX_CHARACTERS = 500;
 
 const CreatePostScreen = ({navigation}) => {
   const [post, setPost] = useState('');
+  const [attachment, setAttachment] = useState(null);
 
   const {addPost} = useContext(PostsContext);
+  const {user} = useContext(AuthContext);
 
-  const handlePost = () => {
-    if (post.trim().length === 0) {
-      Alert.alert('Error', 'Please write something.');
+  const name = user?.displayName || 'Social Connect User';
+  const username =
+    user?.email?.split('@')[0] ||
+    (user?.uid ? `user_${user.uid.slice(0, 6)}` : 'socialconnect');
+  const avatarInitial = name.charAt(0).toUpperCase();
+
+  const requestCameraPermission = async () => {
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.CAMERA,
+      {
+        title: 'Camera Permission',
+        message: 'App needs access to your camera to take photos or videos.',
+        buttonPositive: 'Allow',
+        buttonNegative: 'Deny',
+      },
+    );
+
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+  };
+
+  const requestGalleryPermission = async () => {
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    if (Platform.Version >= 33) {
+      const imagePermission = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
+        {
+          title: 'Media Permission',
+          message: 'App needs access to your photos to attach images to posts.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Deny',
+        },
+      );
+      const videoPermission = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO,
+        {
+          title: 'Media Permission',
+          message: 'App needs access to your videos to attach media to posts.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Deny',
+        },
+      );
+
+      return (
+        imagePermission === PermissionsAndroid.RESULTS.GRANTED &&
+        videoPermission === PermissionsAndroid.RESULTS.GRANTED
+      );
+    }
+
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+      {
+        title: 'Storage Permission',
+        message: 'App needs access to your gallery to attach photos or videos to posts.',
+        buttonPositive: 'Allow',
+        buttonNegative: 'Deny',
+      },
+    );
+
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+  };
+
+  const handleLaunchGallery = async () => {
+    const permission = await requestGalleryPermission();
+    if (!permission) {
+      Alert.alert('Permission denied', 'Gallery access is required to select media.');
       return;
     }
 
-    addPost(post.trim());
+    launchImageLibrary(
+      {
+        mediaType: 'mixed',
+        selectionLimit: 1,
+      },
+      response => {
+        if (response.didCancel) {
+          return;
+        }
+        if (response.errorMessage) {
+          Alert.alert('Image Picker Error', response.errorMessage);
+          return;
+        }
+        const asset = response.assets?.[0];
+        if (asset?.uri) {
+          setAttachment({
+            uri: asset.uri,
+            type: asset.type,
+            fileName: asset.fileName,
+          });
+        }
+      },
+    );
+  };
+
+  const handleLaunchCamera = async () => {
+    const permission = await requestCameraPermission();
+    if (!permission) {
+      Alert.alert('Permission denied', 'Camera access is required to take photos.');
+      return;
+    }
+
+    launchCamera(
+      {
+        mediaType: 'photo',
+        saveToPhotos: true,
+      },
+      response => {
+        if (response.didCancel) {
+          return;
+        }
+        if (response.errorMessage) {
+          Alert.alert('Camera Error', response.errorMessage);
+          return;
+        }
+        const asset = response.assets?.[0];
+        if (asset?.uri) {
+          setAttachment({
+            uri: asset.uri,
+            type: asset.type,
+            fileName: asset.fileName,
+          });
+        }
+      },
+    );
+  };
+
+  const handlePost = () => {
+    if (post.trim().length === 0 && !attachment) {
+      Alert.alert('Error', 'Please write something or attach media.');
+      return;
+    }
+
+    addPost(post.trim(), name, attachment, user?.uid || null);
 
     setPost('');
+    setAttachment(null);
 
     Alert.alert('Success', 'Post created successfully!', [
       {
@@ -48,14 +188,12 @@ const CreatePostScreen = ({navigation}) => {
 
         <View style={styles.userRow}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>K</Text>
+            <Text style={styles.avatarText}>{avatarInitial}</Text>
           </View>
 
           <View>
-            <Text style={styles.name}>Kamran Afzal</Text>
-            <Text style={styles.subtitle}>
-              Share something with your friends
-            </Text>
+            <Text style={styles.name}>{name}</Text>
+            <Text style={styles.subtitle}>@{username}</Text>
           </View>
         </View>
 
@@ -69,17 +207,41 @@ const CreatePostScreen = ({navigation}) => {
           onChangeText={setPost}
         />
 
+        {attachment?.uri ? (
+          <View style={styles.attachmentPreview}>
+            {attachment.type?.startsWith('image') ? (
+              <Image
+                source={{uri: attachment.uri}}
+                style={styles.attachmentImage}
+              />
+            ) : (
+              <Text style={styles.attachmentText}>
+                Attached: {attachment.fileName || 'Media file'}
+              </Text>
+            )}
+            <TouchableOpacity
+              style={styles.removeAttachmentButton}
+              onPress={() => setAttachment(null)}>
+              <Text style={styles.removeAttachmentText}>Remove</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         <Text style={styles.counter}>
           {post.length} / {MAX_CHARACTERS}
         </Text>
 
         <View style={styles.actionsContainer}>
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={handleLaunchGallery}>
             <Text style={styles.actionText}>📷 Photo</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionCard}>
-            <Text style={styles.actionText}>🎥 Video</Text>
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={handleLaunchCamera}>
+            <Text style={styles.actionText}>🎥 Camera</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.actionCard}>
@@ -93,10 +255,10 @@ const CreatePostScreen = ({navigation}) => {
 
         <TouchableOpacity
           onPress={handlePost}
-          disabled={post.trim().length === 0}
+          disabled={post.trim().length === 0 && !attachment}
           style={[
             styles.postButton,
-            post.trim().length === 0 &&
+            post.trim().length === 0 && !attachment &&
               styles.disabledButton,
           ]}>
           <Text style={styles.postButtonText}>
@@ -170,6 +332,39 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     borderWidth: 1,
     borderColor: Colors.border,
+  },
+
+  attachmentPreview: {
+    backgroundColor: Colors.white,
+    marginHorizontal: 20,
+    marginTop: 15,
+    borderRadius: 15,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+
+  attachmentImage: {
+    width: '100%',
+    height: 200,
+    resizeMode: 'cover',
+  },
+
+  attachmentText: {
+    padding: 16,
+    color: Colors.text,
+    fontSize: 15,
+  },
+
+  removeAttachmentButton: {
+    padding: 12,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+  },
+
+  removeAttachmentText: {
+    color: Colors.white,
+    fontWeight: 'bold',
   },
 
   counter: {

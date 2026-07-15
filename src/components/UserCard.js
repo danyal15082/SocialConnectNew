@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useContext} from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,16 @@ import {
 } from 'react-native';
 
 import Colors from '../constants/Colors';
+import {AuthContext} from '../context/AuthContext';
 import useFollow from '../hooks/useFollow';
 
 const UserCard = ({user}) => {
-  const {isFollowing, toggleFollow} = useFollow(false);
+  const {user: currentUser} = useContext(AuthContext) || {};
+  const {isFollowing, loading, toggleFollow} = useFollow({
+    initialState: false,
+    followerId: currentUser?.uid,
+    followingId: user?.id,
+  });
 
   return (
     <View style={styles.card}>
@@ -45,16 +51,15 @@ const UserCard = ({user}) => {
           styles.button,
           isFollowing && styles.followingButton,
         ]}
-        onPress={toggleFollow}>
+        onPress={toggleFollow}
+        disabled={loading || !currentUser?.uid}>
         <Text
           style={[
             styles.buttonText,
             isFollowing &&
               styles.followingText,
           ]}>
-          {isFollowing
-            ? 'Following'
-            : 'Follow'}
+          {loading ? 'Please wait' : isFollowing ? 'Following' : 'Follow'}
         </Text>
       </TouchableOpacity>
     </View>

@@ -26,11 +26,23 @@ buildscript {
 apply plugin: "com.facebook.react.rootproject"
 
 allprojects {
-    if (System.properties['os.name'].toLowerCase().contains('windows')) {
-        if (project != rootProject) {
-            def tempBuildDir = new File("C:/SC1_B/${project.path.replace(':', '_')}")
-            project.layout.buildDirectory.set(tempBuildDir)
-            project.buildDir = tempBuildDir
+    if (System.properties['os.name'].toLowerCase().contains('windows') && project != rootProject) {
+        // Use a short build path for subprojects to avoid Windows long-path issues.
+        // Keep the root project on its normal build directory so React Native autolinking
+        // can resolve the generated autolinking.json file at the expected location.
+        def pathHash = Integer.toHexString(project.path.hashCode())
+        def tempBuildDir = new File("C:/S/${pathHash}")
+        project.layout.buildDirectory.set(tempBuildDir)
+    }
+
+    // Help with long paths in CMake on Windows
+    if (!project.state.executed) {
+        project.afterEvaluate {
+            if (project.extensions.findByName('android') != null) {
+                project.android.defaultConfig.externalNativeBuild.cmake {
+                    arguments "-DCMAKE_OBJECT_PATH_MAX=128"
+                }
+            }
         }
     }
 }

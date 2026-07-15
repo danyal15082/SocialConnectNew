@@ -1,18 +1,20 @@
 import React, {createContext, useState} from 'react';
-import {posts as initialPosts} from '../constants/DummyData';
+
 import PostRepository from '../repositories/PostRepository';
 
 export const PostsContext = createContext();
 
 export const PostsProvider = ({children}) => {
-  const [posts, setPosts] = useState(initialPosts);
+  const [posts, setPosts] = useState([]);
 
-  const addPost = caption => {
+  const addPost = (caption, userName, attachment, authorId) => {
     const newPost = {
       id: Date.now().toString(),
-      user: 'Kamran Afzal',
+      user: userName || 'Social Connect User',
+      authorId: authorId || null,
       time: new Date().toLocaleString(),
       content: caption,
+      attachment,
       likes: 0,
     };
 
